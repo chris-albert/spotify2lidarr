@@ -3,6 +3,7 @@ import { useLidarrStore } from '@/store/lidarrStore'
 import { useMigrationStore } from '@/store/migrationStore'
 import { CredentialsStore } from '@/lib/storage/CredentialsStore'
 import { LidarrClient } from '@/lib/services/lidarr/LidarrClient'
+import { MusicBrainzClient, type MusicBrainzArtist } from '@/lib/services/musicbrainz/MusicBrainzClient'
 import type { SpotifyArtist, LidarrArtist, MigrationResult } from '@spotify2lidarr/types'
 import { normalizeString } from '@/lib/utils/stringUtils'
 
@@ -70,20 +71,20 @@ export function useLidarr() {
       migrationStore.updateProgress(i + 1, artist.name)
 
       try {
-        // Search for artist in Lidarr's MusicBrainz lookup
-        let results: LidarrArtist[]
+        // Search MusicBrainz directly (bypasses flaky api.lidarr.audio)
+        let mbResults: MusicBrainzArtist[]
         try {
-          results = await LidarrClient.lookupArtist(artist.name)
+          mbResults = await MusicBrainzClient.searchArtist(artist.name)
         } catch (lookupError) {
           migrationStore.addResult({
             artist: artist.name,
             status: 'failed',
-            message: `Lookup failed: ${lookupError instanceof Error ? lookupError.message : 'Unknown error'}`,
+            message: `MusicBrainz lookup failed: ${lookupError instanceof Error ? lookupError.message : 'Unknown error'}`,
           })
           continue
         }
 
-        if (results.length === 0) {
+        if (mbResults.length === 0) {
           migrationStore.addResult({
             artist: artist.name,
             status: 'failed',
@@ -94,32 +95,32 @@ export function useLidarr() {
         }
 
         // Pick best match by normalized name
-        const bestMatch = findBestMatch(artist.name, results)
+        const bestMatch = findBestMbMatch(artist.name, mbResults)
 
         if (!bestMatch) {
           migrationStore.addResult({
             artist: artist.name,
             status: 'failed',
-            message: `${results.length} results but no close match. Top result: "${results[0]?.artistName}"`,
-            lookupResults: results.length,
+            message: `${mbResults.length} results but no close match. Top result: "${mbResults[0]?.name}"`,
+            lookupResults: mbResults.length,
           })
           continue
         }
 
         // Check if already in Lidarr
-        if (existingArtistIds.includes(bestMatch.foreignArtistId)) {
+        if (existingArtistIds.includes(bestMatch.id)) {
           migrationStore.addResult({
             artist: artist.name,
             status: 'exists',
-            message: `Already in Lidarr as "${bestMatch.artistName}"`,
-            matchedName: bestMatch.artistName,
+            message: `Already in Lidarr as "${bestMatch.name}"`,
+            matchedName: bestMatch.name,
           })
           continue
         }
 
-        // Add to Lidarr
+        // Add to Lidarr using MusicBrainz ID
         try {
-          const added = await LidarrClient.addArtist(bestMatch, {
+          const added = await LidarrClient.addArtistByMbId(bestMatch.id, bestMatch.name, {
             qualityProfileId: selectedQualityProfileId,
             metadataProfileId: selectedMetadataProfileId,
             rootFolderPath: selectedRootFolder,
@@ -134,25 +135,24 @@ export function useLidarr() {
           migrationStore.addResult({
             artist: artist.name,
             status: 'added',
-            matchedName: bestMatch.artistName,
+            matchedName: bestMatch.name,
             lidarrId: added.id,
-            message: `Added as "${bestMatch.artistName}"`,
+            message: `Added as "${bestMatch.name}"`,
           })
         } catch (addError) {
           const msg = addError instanceof Error ? addError.message : 'Unknown error'
-          // Check for "already exists" type errors from Lidarr
           if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist')) {
             migrationStore.addResult({
               artist: artist.name,
               status: 'exists',
-              matchedName: bestMatch.artistName,
+              matchedName: bestMatch.name,
               message: `Lidarr: ${msg}`,
             })
           } else {
             migrationStore.addResult({
               artist: artist.name,
               status: 'failed',
-              matchedName: bestMatch.artistName,
+              matchedName: bestMatch.name,
               message: `Add failed: ${msg}`,
             })
           }
@@ -162,7 +162,7 @@ export function useLidarr() {
         // Update existing IDs to prevent duplicates in same run
         useLidarrStore.getState().setExistingArtistIds([
           ...useLidarrStore.getState().existingArtistIds,
-          bestMatch.foreignArtistId,
+          bestMatch.id,
         ])
       } catch (error) {
         migrationStore.addResult({
@@ -190,26 +190,28 @@ export function useLidarr() {
   }
 }
 
-function findBestMatch(
+function findBestMbMatch(
   spotifyName: string,
-  lidarrResults: LidarrArtist[]
-): LidarrArtist | null {
+  mbResults: MusicBrainzArtist[]
+): MusicBrainzArtist | null {
   const normalized = normalizeString(spotifyName)
 
   // First: try exact normalized match
-  const exact = lidarrResults.find(
-    (r) => normalizeString(r.artistName) === normalized
+  const exact = mbResults.find(
+    (r) => normalizeString(r.name) === normalized
   )
   if (exact) return exact
 
   // Second: try starts-with or contains
-  const partial = lidarrResults.find(
+  const partial = mbResults.find(
     (r) =>
-      normalizeString(r.artistName).includes(normalized) ||
-      normalized.includes(normalizeString(r.artistName))
+      normalizeString(r.name).includes(normalized) ||
+      normalized.includes(normalizeString(r.name))
   )
   if (partial) return partial
 
-  // Fallback: return first result (Lidarr's best guess)
-  return lidarrResults[0] || null
+  // Fallback: return top result if score is high enough (>80)
+  if (mbResults[0] && mbResults[0].score > 80) return mbResults[0]
+
+  return null
 }

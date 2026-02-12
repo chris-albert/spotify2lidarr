@@ -151,4 +151,32 @@ export class LidarrClient {
       body: JSON.stringify(body),
     })
   }
+
+  static async addArtistByMbId(
+    foreignArtistId: string,
+    artistName: string,
+    options: {
+      qualityProfileId: number
+      metadataProfileId: number
+      rootFolderPath: string
+      monitored: boolean
+      addOptions: LidarrAddArtistOptions
+    }
+  ): Promise<LidarrArtist> {
+    const body = {
+      artistName,
+      foreignArtistId,
+      qualityProfileId: options.qualityProfileId,
+      metadataProfileId: options.metadataProfileId,
+      rootFolderPath: options.rootFolderPath,
+      monitored: options.monitored,
+      addOptions: options.addOptions,
+      tags: [],
+    }
+
+    return this.request<LidarrArtist>('/artist', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    })
+  }
 }
