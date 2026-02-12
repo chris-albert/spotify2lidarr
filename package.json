@@ -1,0 +1,21 @@
+{
+  "name": "spotify2lidarr",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Migrate your Spotify library to Lidarr",
+  "packageManager": "pnpm@8.15.0",
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "type-check": "turbo run type-check",
+    "clean": "turbo run clean"
+  },
+  "devDependencies": {
+    "turbo": "^1.12.0"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

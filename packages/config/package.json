@@ -1,0 +1,9 @@
+{
+  "name": "@spotify2lidarr/config",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./tailwind/base.config.ts",
+  "devDependencies": {
+    "tailwindcss": "^3.4.1"
+  }
+}

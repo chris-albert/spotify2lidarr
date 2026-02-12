@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-gray-50 text-gray-900 antialiased transition-colors duration-200;
+  }
+
+  .dark body {
+    @apply bg-gray-900 text-gray-100;
+  }
+
+  html.dark {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .container-custom {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8;
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "extends": "@spotify2lidarr/config/typescript/base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "types": ["vite/client"],
+    "paths": {
+      "@/*": ["./src/*"],
+      "@spotify2lidarr/types": ["../../packages/types/src/index.ts"]
+    }
+  },
+  "include": ["src"],
+  "references": [{ "path": "./tsconfig.node.json" }]
+}
