@@ -62,6 +62,10 @@ export function useLidarr() {
     }
 
     for (let i = 0; i < toImport.length; i++) {
+      // Add delay between artists to avoid overwhelming Lidarr's metadata API
+      if (i > 0) {
+        await new Promise((r) => setTimeout(r, 2000))
+      }
       const artist = toImport[i]
       migrationStore.updateProgress(i + 1, artist.name)
 

@@ -18,6 +18,9 @@ export class LidarrClient {
     return { url, apiKey }
   }
 
+  private static readonly MAX_RETRIES = 3
+  private static readonly BASE_DELAY_MS = 3000
+
   private static async request<T>(
     endpoint: string,
     options: RequestInit = {}
@@ -30,40 +33,59 @@ export class LidarrClient {
 
       const requestUrl = `${config.url}/api/v1${endpoint}`
 
-      let response: Response
-      try {
-        response = await fetch(requestUrl, {
-          ...options,
-          headers: {
-            'X-Api-Key': config.apiKey,
-            'Content-Type': 'application/json',
-            ...options.headers,
-          },
-        })
-      } catch (networkError) {
-        throw new Error(
-          `Network error calling ${requestUrl}: ${networkError instanceof Error ? networkError.message : 'Failed to fetch'}`
-        )
-      }
-
-      if (!response.ok) {
-        let detail = ''
+      for (let attempt = 0; attempt <= this.MAX_RETRIES; attempt++) {
+        let response: Response
         try {
-          const error = await response.json()
-          if (error.message) detail = error.message
-          else if (typeof error === 'string') detail = error
-          else if (Array.isArray(error)) detail = error.map((e: any) => e.errorMessage || e.propertyName).join(', ')
-          else detail = JSON.stringify(error)
-        } catch {
-          detail = await response.text().catch(() => '')
+          response = await fetch(requestUrl, {
+            ...options,
+            headers: {
+              'X-Api-Key': config.apiKey,
+              'Content-Type': 'application/json',
+              ...options.headers,
+            },
+          })
+        } catch (networkError) {
+          if (attempt < this.MAX_RETRIES) {
+            await this.sleep(this.BASE_DELAY_MS * Math.pow(2, attempt))
+            continue
+          }
+          throw new Error(
+            `Network error calling ${requestUrl}: ${networkError instanceof Error ? networkError.message : 'Failed to fetch'}`
+          )
         }
-        throw new Error(
-          `Lidarr ${response.status} on ${options.method || 'GET'} ${endpoint}: ${detail}`
-        )
+
+        // Retry on 500-level errors (Lidarr metadata API rate limiting)
+        if (response.status >= 500 && attempt < this.MAX_RETRIES) {
+          await this.sleep(this.BASE_DELAY_MS * Math.pow(2, attempt))
+          continue
+        }
+
+        if (!response.ok) {
+          let detail = ''
+          try {
+            const error = await response.json()
+            if (error.message) detail = error.message
+            else if (typeof error === 'string') detail = error
+            else if (Array.isArray(error)) detail = error.map((e: any) => e.errorMessage || e.propertyName).join(', ')
+            else detail = JSON.stringify(error)
+          } catch {
+            detail = await response.text().catch(() => '')
+          }
+          throw new Error(
+            `Lidarr ${response.status} on ${options.method || 'GET'} ${endpoint}: ${detail}`
+          )
+        }
+
+        return response.json()
       }
 
-      return response.json()
+      // Should not reach here, but TypeScript needs it
+      throw new Error(`Request to ${endpoint} failed after ${this.MAX_RETRIES} retries`)
     })
+  }
+
+  private static sleep(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms))
   }
 
   static async testConnection(): Promise<LidarrSystemStatus> {

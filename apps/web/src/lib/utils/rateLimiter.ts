@@ -74,4 +74,4 @@ export class RateLimiter {
 }
 
 export const spotifyRateLimiter = new RateLimiter(6, 3)
-export const lidarrRateLimiter = new RateLimiter(5, 2)
+export const lidarrRateLimiter = new RateLimiter(1, 1)
