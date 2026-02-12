@@ -52,9 +52,9 @@ function ReviewPage() {
   }, [artists])
 
   const filteredArtists = useMemo(() => {
-    // We can't know which are "existing" without Lidarr lookup,
-    // but we show all for selection
-    return artists
+    return [...artists].sort((a, b) =>
+      a.name.localeCompare(b.name)
+    )
   }, [artists, filter])
 
   const toggleArtist = (id: string) => {
@@ -292,7 +292,7 @@ function ReviewPage() {
                   will be included when importing artists above.
                 </p>
                 <div className="space-y-2 max-h-[400px] overflow-y-auto">
-                  {albums.map((album) => (
+                  {[...albums].sort((a, b) => a.name.localeCompare(b.name)).map((album) => (
                     <div
                       key={album.id}
                       className="flex items-center gap-3 p-3 rounded-lg bg-gray-50 dark:bg-gray-700/50"
