@@ -28,26 +28,38 @@ export class LidarrClient {
         throw new Error('Lidarr not configured. Please enter URL and API key.')
       }
 
-      const response = await fetch(`${config.url}/api/v1${endpoint}`, {
-        ...options,
-        headers: {
-          'X-Api-Key': config.apiKey,
-          'Content-Type': 'application/json',
-          ...options.headers,
-        },
-      })
+      const requestUrl = `${config.url}/api/v1${endpoint}`
+
+      let response: Response
+      try {
+        response = await fetch(requestUrl, {
+          ...options,
+          headers: {
+            'X-Api-Key': config.apiKey,
+            'Content-Type': 'application/json',
+            ...options.headers,
+          },
+        })
+      } catch (networkError) {
+        throw new Error(
+          `Network error calling ${requestUrl}: ${networkError instanceof Error ? networkError.message : 'Failed to fetch'}`
+        )
+      }
 
       if (!response.ok) {
-        let message = `Lidarr API error: ${response.status}`
+        let detail = ''
         try {
           const error = await response.json()
-          if (error.message) message = error.message
-          else if (typeof error === 'string') message = error
-          else if (Array.isArray(error)) message = error.map((e: any) => e.errorMessage || e.propertyName).join(', ')
+          if (error.message) detail = error.message
+          else if (typeof error === 'string') detail = error
+          else if (Array.isArray(error)) detail = error.map((e: any) => e.errorMessage || e.propertyName).join(', ')
+          else detail = JSON.stringify(error)
         } catch {
-          // response wasn't JSON
+          detail = await response.text().catch(() => '')
         }
-        throw new Error(message)
+        throw new Error(
+          `Lidarr ${response.status} on ${options.method || 'GET'} ${endpoint}: ${detail}`
+        )
       }
 
       return response.json()
