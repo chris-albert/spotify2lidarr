@@ -191,51 +191,96 @@ function ReviewPage() {
               )}
 
               {/* Artist list */}
-              <div className="space-y-2 max-h-[600px] overflow-y-auto">
+              <div className="space-y-1 max-h-[600px] overflow-y-auto">
                 {filteredArtists.map((artist) => {
                   const result = migrationResults.find((r) => r.artist === artist.name)
                   return (
-                    <label
+                    <div
                       key={artist.id}
-                      className="flex items-center gap-3 p-3 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer"
+                      className={`rounded-lg ${
+                        result?.status === 'failed'
+                          ? 'bg-red-50 dark:bg-red-900/10'
+                          : result?.status === 'added'
+                            ? 'bg-green-50 dark:bg-green-900/10'
+                            : result?.status === 'exists'
+                              ? 'bg-blue-50 dark:bg-blue-900/10'
+                              : 'hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                      }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={selectedArtistIds.has(artist.id)}
-                        onChange={() => toggleArtist(artist.id)}
-                        disabled={isMigrating}
-                        className="w-4 h-4 text-lidarr-orange rounded border-gray-300 focus:ring-lidarr-orange"
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
-                          {artist.name}
-                        </div>
-                        {artist.genres && artist.genres.length > 0 && (
-                          <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
-                            {artist.genres.slice(0, 3).join(', ')}
+                      <label className="flex items-center gap-3 p-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={selectedArtistIds.has(artist.id)}
+                          onChange={() => toggleArtist(artist.id)}
+                          disabled={isMigrating}
+                          className="w-4 h-4 text-lidarr-orange rounded border-gray-300 focus:ring-lidarr-orange flex-shrink-0"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                            {artist.name}
                           </div>
+                          {!result && artist.genres && artist.genres.length > 0 && (
+                            <div className="text-xs text-gray-500 dark:text-gray-400 truncate">
+                              {artist.genres.slice(0, 3).join(', ')}
+                            </div>
+                          )}
+                          {result && (
+                            <div className={`text-xs mt-0.5 ${
+                              result.status === 'failed'
+                                ? 'text-red-600 dark:text-red-400'
+                                : result.status === 'added'
+                                  ? 'text-green-600 dark:text-green-400'
+                                  : result.status === 'exists'
+                                    ? 'text-blue-600 dark:text-blue-400'
+                                    : 'text-yellow-600 dark:text-yellow-400'
+                            }`}>
+                              {result.message}
+                            </div>
+                          )}
+                        </div>
+                        {result && (
+                          <span
+                            className={`px-2 py-1 text-xs rounded-full font-medium flex-shrink-0 ${
+                              result.status === 'added'
+                                ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
+                                : result.status === 'exists'
+                                  ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
+                                  : result.status === 'failed'
+                                    ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
+                                    : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
+                            }`}
+                          >
+                            {result.status}
+                          </span>
                         )}
-                      </div>
-                      {result && (
-                        <span
-                          className={`px-2 py-1 text-xs rounded-full font-medium ${
-                            result.status === 'added'
-                              ? 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300'
-                              : result.status === 'exists'
-                                ? 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300'
-                                : result.status === 'failed'
-                                  ? 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-300'
-                                  : 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-300'
-                          }`}
-                          title={result.message}
-                        >
-                          {result.status}
-                        </span>
-                      )}
-                    </label>
+                      </label>
+                    </div>
                   )
                 })}
               </div>
+
+              {/* Detailed failure log */}
+              {migrationComplete && stats.failed > 0 && (
+                <div className="mt-4 p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+                  <h3 className="font-semibold text-red-800 dark:text-red-300 mb-2">
+                    Failed Imports ({stats.failed})
+                  </h3>
+                  <div className="space-y-2 text-sm max-h-[300px] overflow-y-auto">
+                    {migrationResults
+                      .filter((r) => r.status === 'failed')
+                      .map((r, i) => (
+                        <div key={i} className="flex gap-2 py-1 border-b border-red-100 dark:border-red-800/50 last:border-0">
+                          <span className="font-medium text-red-900 dark:text-red-200 min-w-0 truncate flex-shrink-0">
+                            {r.artist}
+                          </span>
+                          <span className="text-red-600 dark:text-red-400 truncate">
+                            — {r.message}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Albums section */}

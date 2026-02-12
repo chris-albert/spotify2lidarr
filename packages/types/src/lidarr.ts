@@ -79,5 +79,7 @@ export interface MigrationResult {
   artist: string
   status: 'added' | 'skipped' | 'failed' | 'exists'
   message?: string
+  matchedName?: string
   lidarrId?: number
+  lookupResults?: number
 }

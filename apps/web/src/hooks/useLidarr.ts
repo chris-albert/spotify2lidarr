@@ -67,13 +67,24 @@ export function useLidarr() {
 
       try {
         // Search for artist in Lidarr's MusicBrainz lookup
-        const results = await LidarrClient.lookupArtist(artist.name)
+        let results: LidarrArtist[]
+        try {
+          results = await LidarrClient.lookupArtist(artist.name)
+        } catch (lookupError) {
+          migrationStore.addResult({
+            artist: artist.name,
+            status: 'failed',
+            message: `Lookup failed: ${lookupError instanceof Error ? lookupError.message : 'Unknown error'}`,
+          })
+          continue
+        }
 
         if (results.length === 0) {
           migrationStore.addResult({
             artist: artist.name,
             status: 'failed',
-            message: 'Not found in MusicBrainz',
+            message: `No results found in MusicBrainz for "${artist.name}"`,
+            lookupResults: 0,
           })
           continue
         }
@@ -85,7 +96,8 @@ export function useLidarr() {
           migrationStore.addResult({
             artist: artist.name,
             status: 'failed',
-            message: 'No close match found',
+            message: `${results.length} results but no close match. Top result: "${results[0]?.artistName}"`,
+            lookupResults: results.length,
           })
           continue
         }
@@ -95,29 +107,53 @@ export function useLidarr() {
           migrationStore.addResult({
             artist: artist.name,
             status: 'exists',
-            message: 'Already in Lidarr',
+            message: `Already in Lidarr as "${bestMatch.artistName}"`,
+            matchedName: bestMatch.artistName,
           })
           continue
         }
 
         // Add to Lidarr
-        const added = await LidarrClient.addArtist(bestMatch, {
-          qualityProfileId: selectedQualityProfileId,
-          metadataProfileId: selectedMetadataProfileId,
-          rootFolderPath: selectedRootFolder,
-          monitored: true,
-          addOptions: {
-            monitor: monitorOption,
+        try {
+          const added = await LidarrClient.addArtist(bestMatch, {
+            qualityProfileId: selectedQualityProfileId,
+            metadataProfileId: selectedMetadataProfileId,
+            rootFolderPath: selectedRootFolder,
             monitored: true,
-            searchForMissingAlbums: searchForMissing,
-          },
-        })
+            addOptions: {
+              monitor: monitorOption,
+              monitored: true,
+              searchForMissingAlbums: searchForMissing,
+            },
+          })
 
-        migrationStore.addResult({
-          artist: artist.name,
-          status: 'added',
-          lidarrId: added.id,
-        })
+          migrationStore.addResult({
+            artist: artist.name,
+            status: 'added',
+            matchedName: bestMatch.artistName,
+            lidarrId: added.id,
+            message: `Added as "${bestMatch.artistName}"`,
+          })
+        } catch (addError) {
+          const msg = addError instanceof Error ? addError.message : 'Unknown error'
+          // Check for "already exists" type errors from Lidarr
+          if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('exist')) {
+            migrationStore.addResult({
+              artist: artist.name,
+              status: 'exists',
+              matchedName: bestMatch.artistName,
+              message: `Lidarr: ${msg}`,
+            })
+          } else {
+            migrationStore.addResult({
+              artist: artist.name,
+              status: 'failed',
+              matchedName: bestMatch.artistName,
+              message: `Add failed: ${msg}`,
+            })
+          }
+          continue
+        }
 
         // Update existing IDs to prevent duplicates in same run
         useLidarrStore.getState().setExistingArtistIds([
@@ -128,7 +164,7 @@ export function useLidarr() {
         migrationStore.addResult({
           artist: artist.name,
           status: 'failed',
-          message: error instanceof Error ? error.message : 'Unknown error',
+          message: `Unexpected error: ${error instanceof Error ? error.message : 'Unknown error'}`,
         })
       }
     }
