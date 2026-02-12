@@ -12,25 +12,26 @@
     "clean": "rm -rf dist .turbo"
   },
   "dependencies": {
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
+    "@spotify2lidarr/types": "workspace:*",
     "@tanstack/react-router": "^1.15.0",
     "@tanstack/router-devtools": "^1.15.0",
-    "zustand": "^4.5.0",
     "clsx": "^2.1.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0",
     "tailwind-merge": "^2.2.0",
-    "@spotify2lidarr/types": "workspace:*"
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
+    "@spotify2lidarr/config": "workspace:*",
+    "@tanstack/router-vite-plugin": "^1.15.0",
     "@types/react": "^18.2.0",
     "@types/react-dom": "^18.2.0",
+    "@vitejs/plugin-basic-ssl": "^2.1.4",
     "@vitejs/plugin-react": "^4.2.0",
-    "@tanstack/router-vite-plugin": "^1.15.0",
-    "typescript": "^5.3.3",
-    "vite": "^5.0.11",
-    "tailwindcss": "^3.4.1",
-    "postcss": "^8.4.33",
     "autoprefixer": "^10.4.17",
-    "@spotify2lidarr/config": "workspace:*"
+    "postcss": "^8.4.33",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.3",
+    "vite": "^5.0.11"
   }
 }
