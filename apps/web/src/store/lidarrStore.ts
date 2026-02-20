@@ -128,7 +128,6 @@ export const useLidarrStore = create<LidarrState>()(
         selectedRootFolder: state.selectedRootFolder,
         monitorOption: state.monitorOption,
         searchForMissing: state.searchForMissing,
-        existingArtistIds: state.existingArtistIds,
       }),
     }
   )
