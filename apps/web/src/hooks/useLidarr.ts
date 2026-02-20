@@ -55,8 +55,12 @@ export function useLidarr() {
       selectedRootFolder,
       monitorOption,
       searchForMissing,
-      existingArtistIds,
     } = useLidarrStore.getState()
+
+    // Fetch current artists from Lidarr to get accurate duplicate detection
+    const currentArtists = await LidarrClient.getArtists()
+    const existingArtistIds = currentArtists.map((a) => a.foreignArtistId)
+    useLidarrStore.getState().setExistingArtistIds(existingArtistIds)
 
     // Build map of Spotify artist ID → saved album names for savedAlbumsOnly mode
     const savedAlbumsByArtistId = new Map<string, string[]>()
