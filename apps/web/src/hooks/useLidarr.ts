@@ -158,10 +158,24 @@ export function useLidarr() {
               })
             }
           } else {
+            // Artist is monitored — for savedAlbumsOnly, still ensure saved albums are monitored
+            let albumMsg = ''
+            if (monitorOption === 'savedAlbumsOnly') {
+              try {
+                const artistSavedAlbums = savedAlbumsByArtistId.get(artist.id) || []
+                if (artistSavedAlbums.length > 0) {
+                  const result = await monitorSavedAlbumsOnly(existingArtist.id, artistSavedAlbums)
+                  albumMsg = ` (${result.monitored}/${result.total} albums monitored)`
+                }
+              } catch {
+                // Non-fatal — artist already exists, album monitoring is best-effort
+              }
+            }
+
             migrationStore.addResult({
               artist: artist.name,
               status: 'exists',
-              message: `Already in Lidarr as "${bestMatch.name}"`,
+              message: `Already in Lidarr as "${bestMatch.name}"${albumMsg}`,
               matchedName: bestMatch.name,
             })
           }
