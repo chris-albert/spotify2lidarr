@@ -59,8 +59,8 @@ export function useLidarr() {
 
     // Fetch current artists from Lidarr to get accurate duplicate detection
     const currentArtists = await LidarrClient.getArtists()
-    const existingArtistIds = currentArtists.map((a) => a.foreignArtistId)
-    useLidarrStore.getState().setExistingArtistIds(existingArtistIds)
+    const existingArtistMap = new Map(currentArtists.map((a) => [a.foreignArtistId, a]))
+    useLidarrStore.getState().setExistingArtistIds(currentArtists.map((a) => a.foreignArtistId))
 
     // Build map of Spotify artist ID → saved album names for savedAlbumsOnly mode
     const savedAlbumsByArtistId = new Map<string, string[]>()
@@ -125,13 +125,46 @@ export function useLidarr() {
         }
 
         // Check if already in Lidarr
-        if (existingArtistIds.includes(bestMatch.id)) {
-          migrationStore.addResult({
-            artist: artist.name,
-            status: 'exists',
-            message: `Already in Lidarr as "${bestMatch.name}"`,
-            matchedName: bestMatch.name,
-          })
+        const existingArtist = existingArtistMap.get(bestMatch.id)
+        if (existingArtist) {
+          // If unmonitored, fix it (likely from a previous import with monitor:'none' bug)
+          if (!existingArtist.monitored) {
+            try {
+              await LidarrClient.updateArtistMonitored(existingArtist.id, true)
+
+              // For savedAlbumsOnly, also monitor the right albums
+              let albumMsg = ''
+              if (monitorOption === 'savedAlbumsOnly') {
+                const artistSavedAlbums = savedAlbumsByArtistId.get(artist.id) || []
+                if (artistSavedAlbums.length > 0) {
+                  const result = await monitorSavedAlbumsOnly(existingArtist.id, artistSavedAlbums)
+                  albumMsg = ` (${result.monitored}/${result.total} albums monitored)`
+                }
+              }
+
+              migrationStore.addResult({
+                artist: artist.name,
+                status: 'added',
+                message: `Enabled monitoring for "${bestMatch.name}"${albumMsg}`,
+                matchedName: bestMatch.name,
+                lidarrId: existingArtist.id,
+              })
+            } catch (err) {
+              migrationStore.addResult({
+                artist: artist.name,
+                status: 'failed',
+                message: `Found in Lidarr but failed to enable monitoring: ${err instanceof Error ? err.message : 'Unknown error'}`,
+                matchedName: bestMatch.name,
+              })
+            }
+          } else {
+            migrationStore.addResult({
+              artist: artist.name,
+              status: 'exists',
+              message: `Already in Lidarr as "${bestMatch.name}"`,
+              matchedName: bestMatch.name,
+            })
+          }
           continue
         }
 
