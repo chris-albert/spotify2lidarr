@@ -69,8 +69,10 @@ export interface LidarrSystemStatus {
   appName: string
 }
 
+export type MonitorOption = 'all' | 'future' | 'missing' | 'existing' | 'first' | 'latest' | 'none' | 'savedAlbumsOnly'
+
 export interface LidarrAddArtistOptions {
-  monitor: 'all' | 'future' | 'missing' | 'existing' | 'first' | 'latest' | 'none'
+  monitor: MonitorOption
   monitored: boolean
   searchForMissingAlbums: boolean
 }
@@ -82,4 +84,6 @@ export interface MigrationResult {
   matchedName?: string
   lidarrId?: number
   lookupResults?: number
+  albumsMonitored?: number
+  albumsTotal?: number
 }

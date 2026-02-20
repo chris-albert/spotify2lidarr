@@ -124,6 +124,17 @@ export class LidarrClient {
     )
   }
 
+  static async getAlbumsByArtistId(artistId: number): Promise<LidarrAlbum[]> {
+    return this.request<LidarrAlbum[]>(`/album?artistId=${artistId}`)
+  }
+
+  static async updateAlbumMonitoring(albumIds: number[], monitored: boolean): Promise<LidarrAlbum[]> {
+    return this.request<LidarrAlbum[]>('/album/monitor', {
+      method: 'PUT',
+      body: JSON.stringify({ albumIds, monitored }),
+    })
+  }
+
   static async addArtist(
     artist: LidarrArtist,
     options: {

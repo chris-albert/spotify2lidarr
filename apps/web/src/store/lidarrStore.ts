@@ -4,6 +4,7 @@ import type {
   LidarrQualityProfile,
   LidarrMetadataProfile,
   LidarrRootFolder,
+  MonitorOption,
 } from '@spotify2lidarr/types'
 
 export interface LidarrState {
@@ -22,7 +23,7 @@ export interface LidarrState {
   selectedQualityProfileId: number | null
   selectedMetadataProfileId: number | null
   selectedRootFolder: string | null
-  monitorOption: 'all' | 'future' | 'missing' | 'existing' | 'first' | 'latest' | 'none'
+  monitorOption: MonitorOption
   searchForMissing: boolean
 
   // Existing library (MusicBrainz IDs already in Lidarr)
@@ -60,7 +61,7 @@ export const useLidarrStore = create<LidarrState>()(
       selectedQualityProfileId: null,
       selectedMetadataProfileId: null,
       selectedRootFolder: null,
-      monitorOption: 'all',
+      monitorOption: 'savedAlbumsOnly',
       searchForMissing: true,
 
       existingArtistIds: [],

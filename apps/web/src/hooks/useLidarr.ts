@@ -4,8 +4,8 @@ import { useMigrationStore } from '@/store/migrationStore'
 import { CredentialsStore } from '@/lib/storage/CredentialsStore'
 import { LidarrClient } from '@/lib/services/lidarr/LidarrClient'
 import { MusicBrainzClient, type MusicBrainzArtist } from '@/lib/services/musicbrainz/MusicBrainzClient'
-import type { SpotifyArtist, LidarrArtist, MigrationResult } from '@spotify2lidarr/types'
-import { normalizeString } from '@/lib/utils/stringUtils'
+import type { SpotifyArtist, SpotifyAlbum, LidarrAlbum, MigrationResult } from '@spotify2lidarr/types'
+import { normalizeString, stringSimilarity } from '@/lib/utils/stringUtils'
 
 export function useLidarr() {
   const lidarrStore = useLidarrStore()
@@ -43,7 +43,8 @@ export function useLidarr() {
 
   const importArtists = useCallback(async (
     spotifyArtists: SpotifyArtist[],
-    selectedIds: Set<string>
+    selectedIds: Set<string>,
+    savedAlbums?: SpotifyAlbum[]
   ) => {
     const toImport = spotifyArtists.filter((a) => selectedIds.has(a.id))
     migrationStore.startMigration(toImport.length)
@@ -56,6 +57,18 @@ export function useLidarr() {
       searchForMissing,
       existingArtistIds,
     } = useLidarrStore.getState()
+
+    // Build map of Spotify artist ID → saved album names for savedAlbumsOnly mode
+    const savedAlbumsByArtistId = new Map<string, string[]>()
+    if (monitorOption === 'savedAlbumsOnly' && savedAlbums) {
+      for (const album of savedAlbums) {
+        for (const artist of album.artists) {
+          const existing = savedAlbumsByArtistId.get(artist.id) || []
+          existing.push(album.name)
+          savedAlbumsByArtistId.set(artist.id, existing)
+        }
+      }
+    }
 
     if (!selectedQualityProfileId || !selectedMetadataProfileId || !selectedRootFolder) {
       migrationStore.setError('Please configure quality profile, metadata profile, and root folder')
@@ -120,24 +133,43 @@ export function useLidarr() {
 
         // Add to Lidarr using MusicBrainz ID
         try {
+          const isSavedAlbumsOnly = monitorOption === 'savedAlbumsOnly'
           const added = await LidarrClient.addArtistByMbId(bestMatch.id, bestMatch.name, {
             qualityProfileId: selectedQualityProfileId,
             metadataProfileId: selectedMetadataProfileId,
             rootFolderPath: selectedRootFolder,
             monitored: true,
             addOptions: {
-              monitor: monitorOption,
+              monitor: isSavedAlbumsOnly ? 'none' : monitorOption,
               monitored: true,
-              searchForMissingAlbums: searchForMissing,
+              searchForMissingAlbums: isSavedAlbumsOnly ? false : searchForMissing,
             },
           })
+
+          // For savedAlbumsOnly, selectively monitor matched albums
+          let albumsMonitored: number | undefined
+          let albumsTotal: number | undefined
+          if (isSavedAlbumsOnly) {
+            const artistSavedAlbums = savedAlbumsByArtistId.get(artist.id) || []
+            if (artistSavedAlbums.length > 0) {
+              const result = await monitorSavedAlbumsOnly(added.id, artistSavedAlbums)
+              albumsMonitored = result.monitored
+              albumsTotal = result.total
+            }
+          }
+
+          const albumMsg = albumsMonitored !== undefined
+            ? ` (${albumsMonitored}/${albumsTotal} albums monitored)`
+            : ''
 
           migrationStore.addResult({
             artist: artist.name,
             status: 'added',
             matchedName: bestMatch.name,
             lidarrId: added.id,
-            message: `Added as "${bestMatch.name}"`,
+            message: `Added as "${bestMatch.name}"${albumMsg}`,
+            albumsMonitored,
+            albumsTotal,
           })
         } catch (addError) {
           const msg = addError instanceof Error ? addError.message : 'Unknown error'
@@ -188,6 +220,53 @@ export function useLidarr() {
     migrationError: migrationStore.error,
     resetMigration: migrationStore.reset,
   }
+}
+
+async function monitorSavedAlbumsOnly(
+  lidarrArtistId: number,
+  spotifyAlbumNames: string[]
+): Promise<{ monitored: number; total: number }> {
+  // Poll for albums with exponential backoff (Lidarr needs time to populate)
+  const delays = [2000, 4000, 8000]
+  let albums: LidarrAlbum[] = []
+
+  for (const delay of delays) {
+    await new Promise((r) => setTimeout(r, delay))
+    albums = await LidarrClient.getAlbumsByArtistId(lidarrArtistId)
+    if (albums.length > 0) break
+  }
+
+  if (albums.length === 0) {
+    return { monitored: 0, total: 0 }
+  }
+
+  // Match Lidarr albums against Spotify saved album names
+  const matchedIds: number[] = []
+  const normalizedSpotifyNames = spotifyAlbumNames.map(normalizeString)
+
+  for (const album of albums) {
+    const normalizedTitle = normalizeString(album.title)
+
+    // Exact normalized match first
+    if (normalizedSpotifyNames.includes(normalizedTitle)) {
+      matchedIds.push(album.id)
+      continue
+    }
+
+    // Fuzzy match fallback
+    const hasFuzzyMatch = spotifyAlbumNames.some(
+      (name) => stringSimilarity(album.title, name) >= 0.85
+    )
+    if (hasFuzzyMatch) {
+      matchedIds.push(album.id)
+    }
+  }
+
+  if (matchedIds.length > 0) {
+    await LidarrClient.updateAlbumMonitoring(matchedIds, true)
+  }
+
+  return { monitored: matchedIds.length, total: albums.length }
 }
 
 function findBestMbMatch(
