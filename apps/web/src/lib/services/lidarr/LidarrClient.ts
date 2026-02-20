@@ -128,6 +128,14 @@ export class LidarrClient {
     return this.request<LidarrAlbum[]>(`/album?artistId=${artistId}`)
   }
 
+  static async updateArtistMonitored(artistId: number, monitored: boolean): Promise<LidarrArtist> {
+    const artist = await this.request<LidarrArtist>(`/artist/${artistId}`)
+    return this.request<LidarrArtist>(`/artist/${artistId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ ...artist, monitored }),
+    })
+  }
+
   static async updateAlbumMonitoring(albumIds: number[], monitored: boolean): Promise<LidarrAlbum[]> {
     return this.request<LidarrAlbum[]>('/album/monitor', {
       method: 'PUT',

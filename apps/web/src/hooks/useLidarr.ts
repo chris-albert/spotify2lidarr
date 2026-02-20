@@ -146,7 +146,7 @@ export function useLidarr() {
             },
           })
 
-          // For savedAlbumsOnly, selectively monitor matched albums
+          // For savedAlbumsOnly, selectively monitor matched albums then mark artist monitored
           let albumsMonitored: number | undefined
           let albumsTotal: number | undefined
           if (isSavedAlbumsOnly) {
@@ -156,6 +156,8 @@ export function useLidarr() {
               albumsMonitored = result.monitored
               albumsTotal = result.total
             }
+            // Lidarr's monitor:'none' sets the artist to unmonitored — fix that
+            await LidarrClient.updateArtistMonitored(added.id, true)
           }
 
           const albumMsg = albumsMonitored !== undefined
